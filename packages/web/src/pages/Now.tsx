@@ -13,7 +13,7 @@ const OTHER_GRAY = '#6b6b66';
 const MIN_R = 46;
 const MAX_R = 116;
 /** Extra space kept between bubbles by the collision force. */
-const GAP = 2;
+const GAP = 10;
 /** How fast a bubble's radius eases toward its target wattage-derived
  *  size each incoming live frame — keeps the collision force (and the
  *  visible size) from jumping with every second-to-second reading. */
