@@ -2,10 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { forceCollide, forceSimulation, forceX, forceY, type Simulation } from 'd3-force';
-import type { SettingsResponse } from '@sense/shared';
+import type { DevicesResponse, EventsResponse, SettingsResponse } from '@sense/shared';
 import { get } from '../api/client.js';
+import { DeviceIcon } from '../components/DeviceIcon.js';
 import { useLiveSocket } from '../hooks/useLiveSocket.js';
-import { formatWatts } from '../lib/format.js';
+import { formatRelativeTime, formatWatts } from '../lib/format.js';
 
 const SENSE_ORANGE = '#f9461c';
 const OTHER_GRAY = '#6b6b66';
@@ -85,6 +86,56 @@ function formatCostPerHour(dollarsPerHr: number, currency: string): string {
   }
 }
 
+/** Left-hand "today" event log, matching the real Now page's timeline. */
+function Timeline() {
+  const events = useQuery({
+    queryKey: ['events', 'today'],
+    queryFn: () => get<EventsResponse>('/api/events'), // defaults to last 24h
+    refetchInterval: 30_000,
+  });
+  const devices = useQuery({
+    queryKey: ['devices'],
+    queryFn: () => get<DevicesResponse>('/api/devices'),
+  });
+  const iconByDevice = new Map((devices.data?.devices ?? []).map((d) => [d.id, d.icon]));
+
+  return (
+    <div className="flex w-64 flex-shrink-0 flex-col overflow-y-auto">
+      <div
+        className="mb-2 flex-shrink-0 text-xs font-bold tracking-wider"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        TODAY
+      </div>
+      {!events.data || events.data.events.length === 0 ? (
+        <div className="py-4 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+          {events.data ? 'No activity yet today.' : 'Loading…'}
+        </div>
+      ) : (
+        <ul>
+          {events.data.events.map((e) => (
+            <li key={e.id} className="relative flex gap-3 pb-4 pl-1">
+              <div
+                className="absolute bottom-0 left-[13px] top-6 w-px"
+                style={{ background: 'var(--border)' }}
+              />
+              <DeviceIcon icon={iconByDevice.get(e.deviceId) ?? null} className="z-10 flex-shrink-0 text-xl" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                  {formatRelativeTime(e.ts)}
+                </div>
+                <div className="text-sm font-medium">
+                  {e.deviceName} turned {e.type}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Now() {
   const navigate = useNavigate();
   const { frame, stale } = useLiveSocket();
@@ -126,12 +177,12 @@ export function Now() {
         'collide',
         forceCollide<BubbleNode>((d) => d.r + GAP).iterations(3),
       )
-      .alphaDecay(0.02)
-      // Real Sense never lets the layout fully settle — it keeps a small
-      // constant simmer so bubbles continuously re-flow as wattages change,
-      // instead of cooling to a stop and then visibly lurching on the next
-      // topology change. alphaTarget > 0 does the same here.
-      .alphaTarget(0.03)
+      .alphaDecay(0.03)
+      // A small constant simmer keeps bubbles re-flowing as wattages change
+      // instead of cooling to a stop and lurching on the next topology
+      // change — but kept low so it reads as "settled" rather than
+      // perpetually drifting.
+      .alphaTarget(0.008)
       .on('tick', rerender);
     simRef.current = sim;
     return () => {
@@ -297,7 +348,9 @@ export function Now() {
         </div>
       </div>
 
-      <div ref={setContainerEl} className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 gap-4">
+        <Timeline />
+        <div ref={setContainerEl} className="min-h-0 flex-1">
         {nodes.length === 0 ? (
           <div
             className="flex h-full items-center justify-center rounded-xl text-sm"
@@ -390,6 +443,7 @@ export function Now() {
             })}
           </svg>
         )}
+        </div>
       </div>
     </div>
   );
