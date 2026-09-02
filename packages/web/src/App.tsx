@@ -1,10 +1,10 @@
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { StatusResponse } from '@sense/shared';
 import { get } from './api/client.js';
 import { Live } from './pages/Live.js';
+import { Now } from './pages/Now.js';
 import { Devices } from './pages/Devices.js';
-import { DeviceDetail } from './pages/DeviceDetail.js';
 import { Trends } from './pages/Trends.js';
 import { PowerQuality } from './pages/PowerQuality.js';
 import { Reports } from './pages/Reports.js';
@@ -12,6 +12,7 @@ import { Settings } from './pages/Settings.js';
 import { SetupMfa } from './pages/SetupMfa.js';
 
 const NAV = [
+  { to: '/now', label: 'Now', icon: '🎈' },
   { to: '/', label: 'Live', icon: '⚡' },
   { to: '/devices', label: 'Devices', icon: '🔌' },
   { to: '/trends', label: 'Trends', icon: '📊' },
@@ -23,25 +24,25 @@ const NAV = [
 function Nav() {
   const link = ({ isActive }: { isActive: boolean }): React.CSSProperties => ({
     color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-    background: isActive ? 'var(--surface-2)' : 'transparent',
+    borderBottomColor: isActive ? 'var(--text-primary)' : 'transparent',
   });
   return (
     <>
-      {/* desktop sidebar */}
+      {/* desktop top bar — matches the real Sense app's horizontal nav:
+          icon+label pairs in a row, active tab underlined, not a sidebar. */}
       <nav
-        className="fixed inset-y-0 left-0 hidden w-48 flex-col gap-1 border-r p-3 md:flex"
+        className="fixed inset-x-0 top-0 z-20 hidden h-14 items-center gap-1 border-b px-4 md:flex"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
       >
-        <div className="mb-4 px-2 pt-1 text-sm font-bold tracking-wide">⚡ Sense Monitor</div>
         {NAV.map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
             end={n.to === '/'}
             style={link}
-            className="rounded-md px-3 py-2 text-sm font-medium transition-colors"
+            className="flex h-14 items-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors"
           >
-            <span className="mr-2">{n.icon}</span>
+            <span>{n.icon}</span>
             {n.label}
           </NavLink>
         ))}
@@ -69,6 +70,7 @@ function Nav() {
 }
 
 export function App() {
+  const location = useLocation();
   const status = useQuery({
     queryKey: ['status'],
     queryFn: () => get<StatusResponse>('/api/status'),
@@ -115,10 +117,24 @@ export function App() {
     );
   }
 
+  // The Now page's bubble layout wants the full window, and the Devices
+  // sidebar+detail split view wants more than the app's usual centered
+  // column, so both opt out of the max-width container.
+  const isNow = location.pathname === '/now';
+  const isDevices = location.pathname.startsWith('/devices');
+
   return (
     <div className="min-h-screen">
       <Nav />
-      <main className="mx-auto max-w-5xl px-4 pb-20 pt-4 md:pb-8 md:pl-52">
+      <main
+        className={
+          isNow
+            ? 'md:pt-14'
+            : isDevices
+              ? 'px-4 pb-20 pt-4 md:pb-8 md:pt-[4.5rem]'
+              : 'mx-auto max-w-5xl px-4 pb-20 pt-4 md:pb-8 md:pt-[4.5rem]'
+        }
+      >
         {!s.cloudConnected && s.authState === 'ok' && (
           <div
             className="mb-4 rounded-md px-3 py-2 text-sm"
@@ -129,8 +145,9 @@ export function App() {
         )}
         <Routes>
           <Route path="/" element={<Live />} />
+          <Route path="/now" element={<Now />} />
           <Route path="/devices" element={<Devices />} />
-          <Route path="/devices/:id" element={<DeviceDetail />} />
+          <Route path="/devices/:id" element={<Devices />} />
           <Route path="/trends" element={<Trends />} />
           <Route path="/power-quality" element={<PowerQuality />} />
           <Route path="/reports" element={<Reports />} />

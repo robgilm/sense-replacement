@@ -31,6 +31,8 @@ export function registerBackfillJob(ctx: AppContext, scheduler: Scheduler): void
   );
   const deviceExistsStmt = ctx.db.prepare('SELECT 1 FROM devices WHERE id = ?');
   const tz = () => ctx.sense.monitorTz ?? ctx.config.tz;
+  const MAX_BACKOFF_MS = 5 * 60_000;
+  let consecutiveFailures = 0;
 
   scheduler.register(
     'backfill',
@@ -38,7 +40,16 @@ export function registerBackfillJob(ctx: AppContext, scheduler: Scheduler): void
     async () => {
       if (ctx.kv.get(DONE_KEY) === '1') return;
       const cursor = ctx.kv.get(CURSOR_KEY) ?? addDays(todayLocal(tz()), -1);
-      const trends = await ctx.sense.getTrends('DAY', `${cursor}T00:00:00`);
+      let trends;
+      try {
+        trends = await ctx.sense.getTrends('DAY', `${cursor}T00:00:00`);
+      } catch (err) {
+        consecutiveFailures += 1;
+        const backoffMs = Math.min(5_000 * 2 ** consecutiveFailures, MAX_BACKOFF_MS);
+        await new Promise((r) => setTimeout(r, backoffMs));
+        throw err;
+      }
+      consecutiveFailures = 0;
       const kwh = trends.consumption?.total ?? 0;
       let emptyStreak = Number(ctx.kv.get(EMPTY_STREAK_KEY) ?? '0');
       let days = Number(ctx.kv.get(DAYS_KEY) ?? '0');

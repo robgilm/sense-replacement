@@ -77,7 +77,7 @@ export function UsageBarChart({ buckets, currency, labelFormatter, height = 240,
               width={compare ? 5 : 8}
               height={h}
               rx={1}
-              fill={hover === i ? 'var(--series-2)' : 'var(--series-1)'}
+              fill={hover === i ? 'var(--series-2)' : 'var(--graph-bar)'}
               tabIndex={0}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}

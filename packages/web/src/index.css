@@ -11,10 +11,15 @@
   --text-muted: #7c7c76;
   --gridline: #2a2a28;
   --axis: #4a4a46;
-  --series-1: #3987e5;
+  /* Sense's real brand accent (#F9461C) — used everywhere they use a
+     single accent: buttons, active states, links, the main power graph. */
+  /* Real Sense keeps orange as the single UI accent (buttons/links/active
+     states) but uses a distinct green for usage bar charts specifically. */
+  --graph-bar: #43d787;
+  --series-1: #f9461c;
   --series-2: #2fb8b3;
   --series-3: #e5b93a;
-  --series-4: #4cb861;
+  --series-4: #ffb602;
   --series-5: #9a7ce8;
   --series-6: #e05d5d;
   --series-7: #d86bb0;
