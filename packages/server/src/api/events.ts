@@ -20,7 +20,7 @@ export function registerEventRoutes(app: FastifyInstance, ctx: AppContext): void
     const stmt = ctx.db.prepare(
       `SELECT e.id, e.device_id AS deviceId, d.name AS deviceName, e.ts, e.type, e.watts, e.source
        FROM events e JOIN devices d ON d.id = e.device_id
-       WHERE e.ts >= ? AND e.ts <= ? ${deviceFilter}
+       WHERE e.ts >= ? AND e.ts <= ? AND e.device_id != 'unknown' ${deviceFilter}
        ORDER BY e.ts DESC LIMIT 200`,
     );
     const args: (number | string)[] = [from, to];

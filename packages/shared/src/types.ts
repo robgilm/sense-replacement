@@ -11,6 +11,9 @@ export interface Device {
   revoked: boolean;
   firstSeen: number; // epoch seconds UTC
   lastSeen: number; // epoch seconds UTC
+  /** On/off detection tuning. null = use the global default. */
+  onThresholdW: number | null;
+  minDurationS: number | null;
 }
 
 /** A device currently drawing power, as seen in the live stream. */

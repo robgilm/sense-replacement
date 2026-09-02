@@ -29,6 +29,12 @@ export class RealtimeCollector {
   /** ts a device was first seen absent/below-threshold, pending OFF_DEBOUNCE_S
    *  confirmation before its 'off' event is recorded. */
   private missingSince = new Map<string, number>();
+  /** Per-device on/off tuning (Sense's "Standby to On threshold" and
+   *  "Minimum On/Off duration"), refreshed each flush cycle so a setting
+   *  change takes effect without a restart. Missing entry = use the global
+   *  default (ON_THRESHOLD_W / OFF_DEBOUNCE_S). */
+  private thresholds = new Map<string, { onThresholdW: number | null; minDurationS: number | null }>();
+  private readonly thresholdsStmt;
   private readonly insertDeviceStmt;
   private readonly touchLastSeenStmt;
   private readonly insertPowerRollupStmt;
@@ -76,6 +82,10 @@ export class RealtimeCollector {
     this.stalls = new MotorStallDetector({
       maxDutyCycle: getDetectionSettings(ctx).stallMaxDutyCycle,
     });
+    this.thresholdsStmt = ctx.db.prepare(
+      'SELECT id, on_threshold_w, min_duration_s FROM devices',
+    );
+    this.refreshThresholds();
     this.insertDeviceStmt = ctx.db.prepare(
       `INSERT OR IGNORE INTO devices (id, name, icon, type, tags_json, is_guess, revoked, first_seen, last_seen)
        VALUES (?, ?, ?, NULL, '{}', 0, 0, ?, ?)`,
@@ -347,20 +357,21 @@ export class RealtimeCollector {
       this.seenFirstFrame = true;
       for (const [id, d] of seenNow) {
         this.prevDevices.set(id, d.w);
-        if (d.w > ON_THRESHOLD_W) this.onSince.set(id, ts);
+        if (d.w > this.thresholdFor(id)) this.onSince.set(id, ts);
       }
       return;
     }
 
     // On-transitions.
     for (const [id, d] of seenNow) {
-      const wasOn = (this.prevDevices.get(id) ?? 0) > ON_THRESHOLD_W;
-      if (!wasOn && d.w > ON_THRESHOLD_W) {
+      const threshold = this.thresholdFor(id);
+      const wasOn = (this.prevDevices.get(id) ?? 0) > threshold;
+      if (!wasOn && d.w > threshold) {
         this.recordEvent(id, ts, 'on', d.w);
         this.onSince.set(id, ts);
         emitEvent(this.ctx, { type: 'device.on', ts, deviceId: id, name: d.name, w: d.w });
       }
-      if (d.w > ON_THRESHOLD_W) this.missingSince.delete(id);
+      if (d.w > threshold) this.missingSince.delete(id);
       this.prevDevices.set(id, d.w);
     }
 
@@ -368,18 +379,19 @@ export class RealtimeCollector {
     // list every currently-on device on every single frame, so treating one
     // missed frame as "off" fires a spurious off/on pair as soon as the
     // device reappears — this was producing thousands of duplicate events
-    // across many devices. Require the absence to persist for
-    // OFF_DEBOUNCE_S before confirming it as a real off.
+    // across many devices. Require the absence to persist for the device's
+    // minimum on/off duration before confirming it as a real off.
     for (const [id, prevW] of this.prevDevices) {
-      if (prevW <= ON_THRESHOLD_W) continue; // already considered off
+      const threshold = this.thresholdFor(id);
+      if (prevW <= threshold) continue; // already considered off
       const nowW = seenNow.get(id)?.w ?? 0;
-      if (nowW > ON_THRESHOLD_W) continue; // still on, handled above
+      if (nowW > threshold) continue; // still on, handled above
       const missingTs = this.missingSince.get(id);
       if (missingTs === undefined) {
         this.missingSince.set(id, ts);
         continue;
       }
-      if (ts - missingTs < OFF_DEBOUNCE_S) continue;
+      if (ts - missingTs < this.debounceFor(id)) continue;
       this.recordEvent(id, ts, 'off', nowW || null);
       const since = this.onSince.get(id);
       this.onSince.delete(id);
@@ -395,12 +407,32 @@ export class RealtimeCollector {
     }
   }
 
+  private thresholdFor(deviceId: string): number {
+    return this.thresholds.get(deviceId)?.onThresholdW ?? ON_THRESHOLD_W;
+  }
+
+  private debounceFor(deviceId: string): number {
+    return this.thresholds.get(deviceId)?.minDurationS ?? OFF_DEBOUNCE_S;
+  }
+
+  private refreshThresholds(): void {
+    const rows = this.thresholdsStmt.all() as {
+      id: string;
+      on_threshold_w: number | null;
+      min_duration_s: number | null;
+    }[];
+    this.thresholds = new Map(
+      rows.map((r) => [r.id, { onThresholdW: r.on_threshold_w, minDurationS: r.min_duration_s }]),
+    );
+  }
+
   private recordEvent(deviceId: string, ts: number, type: 'on' | 'off', watts: number | null): void {
     if (!this.deviceExistsStmt.get(deviceId)) return;
     this.insertEventStmt.run(deviceId, ts, type, watts);
   }
 
   private flush(): void {
+    this.refreshThresholds();
     try {
       const now = Math.floor(Date.now() / 1000);
       const bStart = bucketStart(now - 30, 30); // just-completed bucket

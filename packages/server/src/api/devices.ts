@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import type {
   Device,
   DeviceDetailResponse,
@@ -22,6 +23,8 @@ interface DeviceRow {
   revoked: number;
   first_seen: number;
   last_seen: number;
+  on_threshold_w: number | null;
+  min_duration_s: number | null;
 }
 
 function toDevice(r: DeviceRow): Device {
@@ -41,6 +44,8 @@ function toDevice(r: DeviceRow): Device {
     revoked: r.revoked === 1,
     firstSeen: r.first_seen,
     lastSeen: r.last_seen,
+    onThresholdW: r.on_threshold_w,
+    minDurationS: r.min_duration_s,
   };
 }
 
@@ -137,6 +142,24 @@ export function registerDeviceRoutes(app: FastifyInstance, ctx: AppContext): voi
     });
     devices.sort((a, b) => (b.nowW ?? -1) - (a.nowW ?? -1) || a.name.localeCompare(b.name));
     return { devices };
+  });
+
+  const settingsSchema = z.object({
+    onThresholdW: z.number().positive().nullable(),
+    minDurationS: z.number().int().nonnegative().nullable(),
+  });
+  const updateThresholdsStmt = ctx.db.prepare(
+    'UPDATE devices SET on_threshold_w = ?, min_duration_s = ? WHERE id = ?',
+  );
+
+  // Matches Sense's own per-device "Standby to On threshold" / "Minimum
+  // On/Off duration" settings. null resets a field to the global default.
+  app.patch<{ Params: { id: string } }>('/devices/:id/settings', async (req, reply) => {
+    const parsed = settingsSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.message });
+    if (!oneDeviceStmt.get(req.params.id)) return reply.status(404).send({ error: 'unknown device' });
+    updateThresholdsStmt.run(parsed.data.onThresholdW, parsed.data.minDurationS, req.params.id);
+    return { ok: true };
   });
 
   app.get<{ Params: { id: string } }>('/devices/:id', async (req, reply): Promise<DeviceDetailResponse | void> => {
