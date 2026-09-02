@@ -89,7 +89,11 @@ export function registerHistoryRoutes(app: FastifyInstance, ctx: AppContext): vo
     const startDay = addDays(end, -rangeDaysFor(scale));
 
     const buckets = bucketsForRange(scale, startDay, end);
-    const totalKwh = buckets.reduce((s, b) => s + b.kwh, 0);
+    // buckets span a wide range so the chart has history (e.g. 12 months for
+    // the Month scale) — the summary totals below are for the *current*
+    // period only, which is the last (most recent) bucket, not a sum of
+    // every bucket shown on the chart.
+    const totalKwh = buckets.at(-1)?.kwh ?? 0;
 
     const deviceRows = ctx.db
       .prepare(
@@ -119,14 +123,19 @@ export function registerHistoryRoutes(app: FastifyInstance, ctx: AppContext): vo
       });
     }
 
-    const totalCost = buckets.reduce((s, b) => s + b.cost, 0);
+    const totalCost = buckets.at(-1)?.cost ?? 0;
     const response: UsageResponse = { scale, buckets, totalKwh, totalCost, devices };
     if (ctx.kv.get('solar.detected') === '1') {
-      const production = ctx.db
-        .prepare(
-          'SELECT SUM(production_kwh) AS kwh FROM daily_summary WHERE day > ? AND day <= ? AND production_kwh IS NOT NULL',
-        )
-        .get(startDay, end) as { kwh: number | null };
+      // Scoped to the same current-period label as totalKwh/totalCost above
+      // (not the whole startDay..end chart range) — same bug, same fix.
+      const currentLabel = buckets.at(-1)?.label;
+      const production = currentLabel
+        ? (ctx.db
+            .prepare(
+              `SELECT SUM(production_kwh) AS kwh FROM daily_summary WHERE ${bucketExprFor(scale)} = ? AND production_kwh IS NOT NULL`,
+            )
+            .get(currentLabel) as { kwh: number | null })
+        : { kwh: 0 };
       response.totalProductionKwh = production.kwh ?? 0;
     }
     if (parsed.data.compare === 1) {

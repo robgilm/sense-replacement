@@ -119,7 +119,7 @@ function Timeline() {
                 className="absolute bottom-0 left-[13px] top-6 w-px"
                 style={{ background: 'var(--border)' }}
               />
-              <DeviceIcon icon={iconByDevice.get(e.deviceId) ?? null} className="z-10 flex-shrink-0 text-xl" />
+              <DeviceIcon icon={iconByDevice.get(e.deviceId) ?? null} className="z-10 flex-shrink-0" size={20} />
               <div className="min-w-0 flex-1">
                 <div className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
                   {formatRelativeTime(e.ts)}

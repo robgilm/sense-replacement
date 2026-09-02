@@ -65,7 +65,7 @@ function DeviceList({
               opacity: d.revoked ? 0.5 : 1,
             }}
           >
-            <DeviceIcon icon={d.icon} className="text-2xl" />
+            <DeviceIcon icon={d.icon} size={24} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold">{d.name}</div>
               <div
@@ -125,7 +125,7 @@ function DeviceDetailPanel({ id, currency }: { id: string; currency: string }) {
   return (
     <div className="min-w-0 flex-1 space-y-4">
       <div className="flex items-center gap-4">
-        <DeviceIcon icon={device.icon} className="text-5xl" />
+        <DeviceIcon icon={device.icon} size={48} />
         <div>
           <h1 className="text-2xl font-bold">
             {device.name}
