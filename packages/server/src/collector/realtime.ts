@@ -10,12 +10,25 @@ import { MotorStallDetector, type ActiveStall } from './stall.js';
 const FLUSH_INTERVAL_MS = 30_000;
 const LAST_SEEN_THROTTLE_MS = 60_000;
 const ON_THRESHOLD_W = 5;
+/** How long a device must stay absent/below-threshold before its "off" is
+ *  confirmed — realtime frames arrive every 0.5-1s, so this covers several
+ *  missed frames without noticeably delaying a genuine off. */
+const OFF_DEBOUNCE_S = 3;
 const DEVICE_ROLLUP_MIN_W = 0.5;
 
 export class RealtimeCollector {
   private flushTimer: NodeJS.Timeout | null = null;
   private lastSeenThrottle = new Map<string, number>();
   private prevDevices = new Map<string, number>();
+  /** True once we've seen a first real frame. prevDevices only lives in
+   *  memory, so every process restart loses it — without this, the first
+   *  frame after any restart treats every already-on device as newly
+   *  turning on (wasOn defaults false) and logs a spurious duplicate 'on'
+   *  event. Seed silently from that first frame instead of guessing. */
+  private seenFirstFrame = false;
+  /** ts a device was first seen absent/below-threshold, pending OFF_DEBOUNCE_S
+   *  confirmation before its 'off' event is recorded. */
+  private missingSince = new Map<string, number>();
   private readonly insertDeviceStmt;
   private readonly touchLastSeenStmt;
   private readonly insertPowerRollupStmt;
@@ -329,6 +342,17 @@ export class RealtimeCollector {
   private detectTransitions(devices: LiveDevice[], ts: number): void {
     const seenNow = new Map(devices.map((d) => [d.id, d] as const));
     for (const [id, d] of seenNow) this.lastNames.set(id, d.name);
+
+    if (!this.seenFirstFrame) {
+      this.seenFirstFrame = true;
+      for (const [id, d] of seenNow) {
+        this.prevDevices.set(id, d.w);
+        if (d.w > ON_THRESHOLD_W) this.onSince.set(id, ts);
+      }
+      return;
+    }
+
+    // On-transitions.
     for (const [id, d] of seenNow) {
       const wasOn = (this.prevDevices.get(id) ?? 0) > ON_THRESHOLD_W;
       if (!wasOn && d.w > ON_THRESHOLD_W) {
@@ -336,26 +360,39 @@ export class RealtimeCollector {
         this.onSince.set(id, ts);
         emitEvent(this.ctx, { type: 'device.on', ts, deviceId: id, name: d.name, w: d.w });
       }
+      if (d.w > ON_THRESHOLD_W) this.missingSince.delete(id);
+      this.prevDevices.set(id, d.w);
     }
+
+    // Off-transitions, debounced: Sense's realtime payload doesn't reliably
+    // list every currently-on device on every single frame, so treating one
+    // missed frame as "off" fires a spurious off/on pair as soon as the
+    // device reappears — this was producing thousands of duplicate events
+    // across many devices. Require the absence to persist for
+    // OFF_DEBOUNCE_S before confirming it as a real off.
     for (const [id, prevW] of this.prevDevices) {
-      const wasOn = prevW > ON_THRESHOLD_W;
-      const isOn = (seenNow.get(id)?.w ?? 0) > ON_THRESHOLD_W;
-      if (wasOn && !isOn) {
-        this.recordEvent(id, ts, 'off', seenNow.get(id)?.w ?? null);
-        const since = this.onSince.get(id);
-        this.onSince.delete(id);
-        emitEvent(this.ctx, {
-          type: 'device.off',
-          ts,
-          deviceId: id,
-          name: this.lastNames.get(id) ?? id,
-          runtimeS: since !== undefined ? ts - since : null,
-        });
+      if (prevW <= ON_THRESHOLD_W) continue; // already considered off
+      const nowW = seenNow.get(id)?.w ?? 0;
+      if (nowW > ON_THRESHOLD_W) continue; // still on, handled above
+      const missingTs = this.missingSince.get(id);
+      if (missingTs === undefined) {
+        this.missingSince.set(id, ts);
+        continue;
       }
+      if (ts - missingTs < OFF_DEBOUNCE_S) continue;
+      this.recordEvent(id, ts, 'off', nowW || null);
+      const since = this.onSince.get(id);
+      this.onSince.delete(id);
+      this.missingSince.delete(id);
+      this.prevDevices.set(id, 0);
+      emitEvent(this.ctx, {
+        type: 'device.off',
+        ts,
+        deviceId: id,
+        name: this.lastNames.get(id) ?? id,
+        runtimeS: since !== undefined ? ts - since : null,
+      });
     }
-    const next = new Map<string, number>();
-    for (const [id, d] of seenNow) next.set(id, d.w);
-    this.prevDevices = next;
   }
 
   private recordEvent(deviceId: string, ts: number, type: 'on' | 'off', watts: number | null): void {
