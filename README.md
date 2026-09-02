@@ -8,6 +8,28 @@ data locally** so your history survives even if Sense's cloud goes dark.
 If this project keeps your monitor alive, you can
 [☕ buy me a coffee](https://buymeacoffee.com/chadohman).
 
+## This fork
+
+This is a fork of
+[ChadOhman/sense-replacement](https://github.com/ChadOhman/sense-replacement),
+kept in sync with upstream. Changes made here on top of it:
+
+- **Now page bubbles rebuilt to match the real Sense app** — sizing is
+  normalized against a smoothed max wattage instead of the raw instantaneous
+  reading, and the physics simulation keeps a small permanent "simmer" instead
+  of cooling to a stop and reheating hard on every device add/remove. The old
+  behavior read as bubbles visibly pulling together and bouncing apart every
+  few seconds; the real app's bubbles drift continuously and smoothly instead.
+  Bubbles are also now clickable, navigating to that device's page.
+- **Devices page rebuilt as a sidebar + detail split view** (was a flat
+  table), matching the real app's layout — device list on the left sorted by
+  current draw, selected device's stats/usage chart on the right.
+- **Visual theme matched to the real app**: the actual Sense brand orange as
+  the single UI accent, their green for usage bar charts, and the nav
+  restructured from a sidebar into their horizontal top bar.
+- Fixed `pnpm dev` not loading `.env` (no dotenv/`--env-file` was wired in).
+- Added retry/backoff to the backfill collector on transient failures.
+
 ## What it does
 
 - **Live power meter** — streaming wattage graph from your monitor's realtime

@@ -8,3 +8,4 @@ coverage/
 
 # Local deployment details (home-network specifics stay out of the repo)
 scripts/deploy.sh
+TODO.md
