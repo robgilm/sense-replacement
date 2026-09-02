@@ -1,6 +1,13 @@
 # ---- build stage ----
-FROM node:24-alpine AS build
-RUN apk add --no-cache python3 make g++ && corepack enable
+# Debian-slim (glibc), not Alpine (musl): better-sqlite3's native addon has no
+# musl prebuilt and must compile from source there, a combination with known
+# native-module stability issues (a startup crash in Node's cleanup-hook
+# teardown, worse on newer Node/ARM64). glibc has proper prebuilds/toolchain
+# support and is far more battle-tested for this addon.
+FROM node:22-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable
 WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/shared/package.json packages/shared/
@@ -15,7 +22,7 @@ RUN pnpm -r build
 RUN pnpm --filter @sense/server deploy --legacy --prod /deploy/server
 
 # ---- runtime stage ----
-FROM node:24-alpine
+FROM node:22-slim
 ENV NODE_ENV=production DATA_DIR=/data PORT=3000
 WORKDIR /app
 COPY --from=build /deploy/server ./packages/server

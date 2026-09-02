@@ -121,7 +121,12 @@ async function shutdown(): Promise<void> {
   await sense.stop();
   await app.close();
   db.close();
-  process.exit(0);
+  // No explicit process.exit() here: forcing an abrupt exit right after
+  // closing a native handle (better-sqlite3) races its own exit cleanup
+  // hook against V8/Node environment teardown — intermittently crashes with
+  // "Assertion failed: (env) != nullptr" in RemoveEnvironmentCleanupHook.
+  // Every subsystem above has released what keeps the event loop alive, so
+  // the process exits naturally once this function returns.
 }
 process.on('SIGINT', () => void shutdown());
 process.on('SIGTERM', () => void shutdown());
