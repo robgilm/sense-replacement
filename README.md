@@ -8,6 +8,8 @@ data locally** so your history survives even if Sense's cloud goes dark.
 If this project keeps your monitor alive, you can
 [☕ buy me a coffee](https://buymeacoffee.com/chadohman).
 
+![Now page](docs/images/now-page.png)
+
 ## ⚠️ This fork was built entirely by AI
 
 Every change in this fork — code, config, and this README section — was
