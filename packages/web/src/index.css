@@ -82,3 +82,12 @@ body {
   border-radius: 0.375rem;
   animation: pulse-bg 1.5s ease-in-out infinite;
 }
+
+/* Scrollable but no visible scrollbar track/thumb. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

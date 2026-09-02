@@ -100,7 +100,7 @@ function Timeline() {
   const iconByDevice = new Map((devices.data?.devices ?? []).map((d) => [d.id, d.icon]));
 
   return (
-    <div className="flex w-64 flex-shrink-0 flex-col overflow-y-auto">
+    <div className="no-scrollbar flex w-64 flex-shrink-0 flex-col overflow-y-auto">
       <div
         className="mb-2 flex-shrink-0 text-xs font-bold tracking-wider"
         style={{ color: 'var(--text-muted)' }}
