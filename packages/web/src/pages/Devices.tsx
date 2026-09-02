@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   DeviceDetailResponse,
   DeviceListItem,
   DevicesResponse,
   SettingsResponse,
 } from '@sense/shared';
-import { get } from '../api/client.js';
+import { get, patch } from '../api/client.js';
 import { DeviceIcon } from '../components/DeviceIcon.js';
 import { UsageBarChart } from '../components/charts/UsageBarChart.js';
 import { SkeletonRows } from '../components/Skeleton.js';
@@ -89,6 +89,104 @@ function DeviceList({
           No devices yet — Sense discovers devices over time.
         </div>
       )}
+    </div>
+  );
+}
+
+/** Editable per-device on/off detection tuning — matches Sense's own
+ *  Device Settings "Standby to On threshold" / "Minimum On/Off duration"
+ *  fields. Blank = use the global default. */
+function DeviceThresholdSettings({
+  deviceId,
+  onThresholdW,
+  minDurationS,
+}: {
+  deviceId: string;
+  onThresholdW: number | null;
+  minDurationS: number | null;
+}) {
+  const queryClient = useQueryClient();
+  const [thresholdInput, setThresholdInput] = useState(onThresholdW?.toString() ?? '');
+  const [durationInput, setDurationInput] = useState(minDurationS?.toString() ?? '');
+
+  // Keep the form in sync if the device query refetches with server data
+  // (e.g. after another tab's save), unless the user is mid-edit here.
+  useEffect(() => {
+    setThresholdInput(onThresholdW?.toString() ?? '');
+    setDurationInput(minDurationS?.toString() ?? '');
+  }, [onThresholdW, minDurationS]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      patch(`/api/devices/${deviceId}/settings`, {
+        onThresholdW: thresholdInput.trim() === '' ? null : Number(thresholdInput),
+        minDurationS: durationInput.trim() === '' ? null : Number(durationInput),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['device', deviceId] });
+    },
+  });
+
+  const dirty = thresholdInput !== (onThresholdW?.toString() ?? '') || durationInput !== (minDurationS?.toString() ?? '');
+
+  return (
+    <div className="card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <SectionLabel>Standby</SectionLabel>
+        {dirty && (
+          <button
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+            className="rounded-full px-3 py-1 text-xs font-semibold"
+            style={{ background: 'var(--series-1)', color: '#fff', opacity: save.isPending ? 0.6 : 1 }}
+          >
+            {save.isPending ? 'Saving…' : 'Save changes'}
+          </button>
+        )}
+      </div>
+      <div className="space-y-4 text-sm">
+        <div>
+          <label className="mb-1 block" style={{ color: 'var(--text-secondary)' }}>
+            Standby to On threshold (W)
+          </label>
+          <input
+            type="number"
+            min={0}
+            step="0.1"
+            value={thresholdInput}
+            onChange={(e) => setThresholdInput(e.target.value)}
+            placeholder="Default"
+            className="w-32 rounded-md px-2 py-1 tabular-nums"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+          />
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Above this wattage, the device is considered "on".
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block" style={{ color: 'var(--text-secondary)' }}>
+            Minimum on/off duration (s)
+          </label>
+          <input
+            type="number"
+            min={0}
+            step="1"
+            value={durationInput}
+            onChange={(e) => setDurationInput(e.target.value)}
+            placeholder="Default"
+            className="w-32 rounded-md px-2 py-1 tabular-nums"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+          />
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Prevents brief spikes/dips from triggering a false on/off.
+          </div>
+        </div>
+        {save.isError && (
+          <div className="text-xs" style={{ color: 'var(--status-critical)' }}>
+            {save.error instanceof Error ? save.error.message : 'Save failed.'}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -186,6 +284,12 @@ function DeviceDetailPanel({ id, currency }: { id: string; currency: string }) {
               </div>
             </div>
           )}
+
+          <DeviceThresholdSettings
+            deviceId={device.id}
+            onThresholdW={device.onThresholdW}
+            minDurationS={device.minDurationS}
+          />
 
           <div className="card p-4">
             <SectionLabel>Recent activity</SectionLabel>
