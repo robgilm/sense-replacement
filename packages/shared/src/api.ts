@@ -8,6 +8,9 @@ import type {
   DeviceEvent,
   DeviceUsage,
   LiveFrame,
+  NilmCluster,
+  NilmDevice,
+  NilmLiveState,
   PowerPoint,
   Settings,
   NeutralEvent,
@@ -164,6 +167,11 @@ export interface SummaryResponse {
   monthCost: number;
   alwaysOnW: number | null;
   nowW: number | null;
+  /** Rate in effect right now (cents/kWh), for costing live power. */
+  rateCentsPerKwh: number;
+  /** Name of the TOU period in effect, null on a flat plan or an unmatched hour. */
+  ratePeriodName: string | null;
+  currency: string;
   /** Set when the always-on floor has crept above its 90-day baseline. */
   alwaysOnCreep: { currentW: number; baselineW: number; pct: number } | null;
   /** Solar production today (kWh); null on non-solar monitors. */
@@ -182,6 +190,34 @@ export interface ReportsResponse {
 
 /** GET/PUT /api/settings */
 export type SettingsResponse = Settings;
+
+/** GET /api/nilm/status */
+export interface NilmStatusResponse {
+  eventCount: number;
+  unclusteredCount: number;
+  clusterCount: number;
+  deviceCount: number;
+  /** Epoch seconds of the last clustering pass; null if never run. */
+  lastClusterRunTs: number | null;
+  /** Live snapshot; null before the engine has processed a frame. */
+  live: NilmLiveState | null;
+}
+
+/** GET /api/nilm/clusters */
+export interface NilmClustersResponse {
+  clusters: NilmCluster[];
+}
+
+/** GET/POST /api/nilm/devices */
+export interface NilmDevicesResponse {
+  devices: NilmDevice[];
+}
+
+/** POST /api/nilm/recluster */
+export interface NilmReclusterResponse {
+  assigned: number;
+  newClusters: number;
+}
 
 /** GET /api/setup/status */
 export interface SetupStatusResponse {
