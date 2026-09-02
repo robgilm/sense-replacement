@@ -8,7 +8,16 @@ data locally** so your history survives even if Sense's cloud goes dark.
 If this project keeps your monitor alive, you can
 [☕ buy me a coffee](https://buymeacoffee.com/chadohman).
 
-## This fork
+## ⚠️ This fork was built entirely by AI
+
+Every change in this fork — code, config, and this README section — was
+written by an AI coding agent (Claude), directed by one person for their own
+personal use. It has **not** been independently reviewed or audited. It
+likely contains bugs, and may contain outright mistakes that haven't been
+caught yet. There are **no guarantees** of correctness, security, or
+fitness for any purpose. Use it, fork it, or take ideas from it at your own
+risk — and if you're touching real money (billing/rate logic) or safety
+(brownout/stall detection), verify the numbers yourself before trusting them.
 
 This is a fork of
 [ChadOhman/sense-replacement](https://github.com/ChadOhman/sense-replacement),

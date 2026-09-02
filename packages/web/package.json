@@ -12,6 +12,7 @@
     "@sense/shared": "workspace:*",
     "@tanstack/react-query": "^5.80.0",
     "d3-force": "^3.0.0",
+    "lucide-react": "^1.38.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.0",

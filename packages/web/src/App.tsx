@@ -1,5 +1,18 @@
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import {
+  Activity,
+  BarChart3,
+  FileText,
+  House,
+  Plug,
+  Puzzle,
+  Radio,
+  Settings as SettingsIcon,
+  TriangleAlert,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import type { StatusResponse } from '@sense/shared';
 import { get } from './api/client.js';
 import { Live } from './pages/Live.js';
@@ -12,15 +25,15 @@ import { Reports } from './pages/Reports.js';
 import { Settings } from './pages/Settings.js';
 import { SetupMfa } from './pages/SetupMfa.js';
 
-const NAV = [
-  { to: '/now', label: 'Now', icon: '🎈' },
-  { to: '/', label: 'Live', icon: '⚡' },
-  { to: '/devices', label: 'Devices', icon: '🔌' },
-  { to: '/detection', label: 'Detection', icon: '🧩' },
-  { to: '/trends', label: 'Trends', icon: '📊' },
-  { to: '/power-quality', label: 'Power', icon: '🩺' },
-  { to: '/reports', label: 'Reports', icon: '📄' },
-  { to: '/settings', label: 'Settings', icon: '⚙️' },
+const NAV: { to: string; label: string; icon: LucideIcon }[] = [
+  { to: '/now', label: 'Now', icon: House },
+  { to: '/', label: 'Live', icon: Zap },
+  { to: '/devices', label: 'Devices', icon: Plug },
+  { to: '/detection', label: 'Detection', icon: Puzzle },
+  { to: '/trends', label: 'Trends', icon: BarChart3 },
+  { to: '/power-quality', label: 'Power', icon: Activity },
+  { to: '/reports', label: 'Reports', icon: FileText },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
 function Nav() {
@@ -44,7 +57,7 @@ function Nav() {
             style={link}
             className="flex h-14 items-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors"
           >
-            <span>{n.icon}</span>
+            <n.icon size={18} strokeWidth={2} />
             {n.label}
           </NavLink>
         ))}
@@ -62,7 +75,7 @@ function Nav() {
             style={link}
             className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs"
           >
-            <span className="text-base">{n.icon}</span>
+            <n.icon size={20} strokeWidth={2} />
             {n.label}
           </NavLink>
         ))}
@@ -91,7 +104,7 @@ export function App() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="card max-w-sm p-6 text-center">
-          <div className="text-3xl">📡</div>
+          <Radio size={32} className="mx-auto" />
           <div className="mt-2 font-semibold">Can't reach the server</div>
           <div className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             {(status.error as Error).message}
@@ -109,7 +122,7 @@ export function App() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="card max-w-md p-6 text-center">
-          <div className="text-3xl">⚠️</div>
+          <TriangleAlert size={32} className="mx-auto" />
           <div className="mt-2 font-semibold">Sense sign-in failed</div>
           <div className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             Check SENSE_EMAIL / SENSE_PASSWORD in your .env and restart. Archived data is still served via the API.
