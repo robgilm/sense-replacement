@@ -86,6 +86,58 @@ function formatCostPerHour(dollarsPerHr: number, currency: string): string {
   }
 }
 
+type TimelineItem =
+  | { kind: 'single'; event: EventsResponse['events'][number] }
+  | {
+      kind: 'group';
+      deviceId: string;
+      deviceName: string;
+      count: number;
+      finalType: 'on' | 'off';
+      ts: number;
+    };
+
+/** Rapid on/off cycling for one device within GROUP_GAP_S of itself
+ *  collapses into one summary line, matching the real Now page's "was on
+ *  N times, now in standby" pattern — otherwise a flapping device (a
+ *  compressor, a smart plug near its threshold) buries the timeline in
+ *  near-identical lines. events is newest-first. */
+const GROUP_GAP_S = 15 * 60;
+const MIN_GROUP_SIZE = 3;
+function groupEvents(events: EventsResponse['events']): TimelineItem[] {
+  const items: TimelineItem[] = [];
+  let i = 0;
+  while (i < events.length) {
+    const first = events[i];
+    if (!first) break;
+    let j = i;
+    for (;;) {
+      const cur = events[j];
+      const next = events[j + 1];
+      if (!cur || !next || next.deviceId !== first.deviceId || cur.ts - next.ts >= GROUP_GAP_S) break;
+      j++;
+    }
+    const runLength = j - i + 1;
+    if (runLength >= MIN_GROUP_SIZE) {
+      items.push({
+        kind: 'group',
+        deviceId: first.deviceId,
+        deviceName: first.deviceName,
+        count: runLength,
+        finalType: first.type, // events is newest-first, so `first` is the most recent
+        ts: first.ts,
+      });
+    } else {
+      for (let k = i; k <= j; k++) {
+        const e = events[k];
+        if (e) items.push({ kind: 'single', event: e });
+      }
+    }
+    i = j + 1;
+  }
+  return items;
+}
+
 /** Left-hand "today" event log, matching the real Now page's timeline. */
 function Timeline() {
   const events = useQuery({
@@ -113,23 +165,35 @@ function Timeline() {
         </div>
       ) : (
         <ul>
-          {events.data.events.map((e) => (
-            <li key={e.id} className="relative flex gap-3 pb-4 pl-1">
-              <div
-                className="absolute bottom-0 left-[13px] top-6 w-px"
-                style={{ background: 'var(--border)' }}
-              />
-              <DeviceIcon icon={iconByDevice.get(e.deviceId) ?? null} className="z-10 flex-shrink-0" size={20} />
-              <div className="min-w-0 flex-1">
-                <div className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
-                  {formatRelativeTime(e.ts)}
+          {groupEvents(events.data.events).map((item) => {
+            const [id, ts, text] =
+              item.kind === 'group'
+                ? [
+                    item.deviceId,
+                    item.ts,
+                    `${item.deviceName} cycled ${item.count} times, now ${item.finalType}`,
+                  ]
+                : [
+                    item.event.deviceId,
+                    item.event.ts,
+                    `${item.event.deviceName} turned ${item.event.type}`,
+                  ];
+            return (
+              <li key={`${id}-${ts}`} className="relative flex gap-3 pb-4 pl-1">
+                <div
+                  className="absolute bottom-0 left-[13px] top-6 w-px"
+                  style={{ background: 'var(--border)' }}
+                />
+                <DeviceIcon icon={iconByDevice.get(id) ?? null} className="z-10 flex-shrink-0" size={20} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                    {formatRelativeTime(ts)}
+                  </div>
+                  <div className="text-sm font-medium">{text}</div>
                 </div>
-                <div className="text-sm font-medium">
-                  {e.deviceName} turned {e.type}
-                </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
