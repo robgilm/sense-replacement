@@ -35,6 +35,16 @@ kept in sync with upstream. Changes made here on top of it:
 - **Visual theme matched to the real app**: the actual Sense brand orange as
   the single UI accent, their green for usage bar charts, and the nav
   restructured from a sidebar into their horizontal top bar.
+- **Per-device Standby settings** (Devices page): on-threshold watts and
+  minimum on/off duration, applied live by the realtime collector.
+- **Fixed Trends cost/usage totals** — they summed every chart bucket instead
+  of just the current period, wildly inflating week/month figures.
+- **Fixed duplicate device on/off events** — state is seeded silently on the
+  first frame after a restart, and "off" is debounced (3 s) so one missed
+  frame no longer logs an off/on pair. Sense's synthetic "Other" device is
+  left off the activity timeline.
+- Docker image pinned to `node:22-slim` — Node 24 has no `better-sqlite3`
+  prebuilt, and the forced native compile caused intermittent startup crashes.
 - Fixed `pnpm dev` not loading `.env` (no dotenv/`--env-file` was wired in).
 - Added retry/backoff to the backfill collector on transient failures.
 
